@@ -14,7 +14,6 @@ public class Server {
     public static void main(String[] args) {
         {
             ArrayList<User> users = new ArrayList<>();
-            ArrayList<String> usersName = new ArrayList<>();
             try {
                 ServerSocket serverSocket = new ServerSocket(8188); // Создаём серверный сокет
                 System.out.println("Сервер запущен");
@@ -24,25 +23,23 @@ public class Server {
                     User currentUser = new User(socket);
                     users.add(currentUser);
                     DataInputStream in = new DataInputStream(currentUser.getSocket().getInputStream()); // Поток ввода
-                    ObjectOutputStream oos = new ObjectOutputStream(currentUser.getSocket().getOutputStream()); // Поток вывода
-                    currentUser.setOos(oos);
+                    DataOutputStream out = new DataOutputStream(currentUser.getSocket().getOutputStream()); // Поток вывода
                     Thread thread = new Thread(new Runnable() {
                         @Override
                         public void run() {
                             try {
-                                currentUser.getOos().writeObject("Добро пожаловать на сервер");
-                                currentUser.getOos().writeObject("Введите ваше имя: ");
+                                out.writeUTF("Добро пожаловать на сервер");
+                                out.writeUTF("Введите ваше имя: ");
                                 String userName = in.readUTF(); // Ожидаем имя от клиента
                                 while (checkFreeName(users, userName)){
-                                    currentUser.getOos().writeObject("Имя: "+userName+" занято, попробуйте ввести другое");
+                                    out.writeUTF("Имя: "+userName+" занято, попробуйте ввести другое");
                                     userName = in.readUTF();
                                 }
                                 currentUser.setUserName(userName);
-                                usersName.add(currentUser.getUserName()); // Добавляем имя пользователя в коллекцию
                                 for (User user : users) {
-                                    user.getOos().writeObject(currentUser.getUserName()+" присоединился к беседе");
-                                    user.getOos().writeObject(new ArrayList<>(usersName)); // Отправляем список пользователей клиентам
-                                    System.out.println("Отправляем список пользователей" + usersName); // Пказываем, что отправили
+                                    DataOutputStream out = new DataOutputStream(user.getSocket().getOutputStream());
+                                    out.writeUTF(currentUser.getUserName()+" присоединился к беседе ");
+
                                 }
                                 while (true){
                                     String request = in.readUTF(); // Ждём сообщение от пользователя
@@ -55,7 +52,7 @@ public class Server {
                                     }
                                 }
                             }catch (IOException e){
-                                userExit(users, currentUser, usersName);
+                                userExit(users, currentUser);
                             }
                         }
                     });
@@ -100,13 +97,12 @@ public class Server {
             out.writeUTF("Пользователь с именем: " + name + " отсутствует");
         }
     }
-    private static void userExit(ArrayList<User> users, User currentUser, ArrayList<String> usersName) {
+    private static void userExit(ArrayList<User> users, User currentUser) {
         users.remove(currentUser);
-        usersName.remove(currentUser.getUserName());
         for (User user : users) {
             try {
-                user.getOos().writeObject(currentUser.getUserName()+" покинул чат");
-                user.getOos().writeObject(new ArrayList<>(usersName));
+               DataOutputStream out = new DataOutputStream(user.getSocket().getOutputStream());
+               out.writeUTF(currentUser.getUserName() + " покинул чат");
             } catch (IOException ioException) {
                 ioException.printStackTrace();
             }
